@@ -1,0 +1,635 @@
+#Set the directory where you saved 00miceSVM.R.
+source("C://Users//...//00miceSVM.R")
+
+library(MASS)
+library(kernlab)
+library(mice)
+library(dplyr)
+library(devEMF)
+
+seed1 <- round(runif(1)*10000000, 0)
+set.seed(seed1)
+
+p1 <- 196
+n1 <- 100
+
+sigmae1 <- sqrt(6)
+
+#Change r for 0.1, 0.5, or 0.9.
+r1 <- 0.1; ate0 <- 3.004
+r1 <- 0.5; ate0 <- 3.028
+r1 <- 0.9; ate0 <- 3.214
+
+b1 <- 2.5; ay1 <- 0; az1 <- 0.4
+
+#It will take several days to complete the computations.
+#You may want to change "maxt1 <- 5", "m1 <- 5", and "s1 <- 100"
+#to see quick results, which will be similar to the results reported 
+#in the manuscript.
+maxt1 <- 20
+m1 <- 10
+s1 <- 1000
+
+################################
+mu1 <- rep(0, p1)
+sigma1 <- toeplitz(r1^(0:(p1-1)))
+
+ate2a <- NULL; ate3a <- NULL; ate5a <- NULL; ate7a <- NULL; ate8a <- NULL
+c2a <- NULL; c3a <- NULL; c5a <- NULL; c7a <- NULL; c8a <- NULL
+l2a <- NULL; l3a <- NULL; l5a <- NULL; l7a <- NULL; l8a <- NULL
+
+ate2b <- NULL; ate3b <- NULL; ate5b <- NULL; ate7b <- NULL; ate8b <- NULL
+c2b <- NULL; c3b <- NULL; c5b <- NULL; c7b <- NULL; c8b <- NULL
+l2b <- NULL; l3b <- NULL; l5b <- NULL; l7b <- NULL; l8b <- NULL
+
+ate2c <- NULL; ate3c <- NULL; ate5c <- NULL; ate7c <- NULL; ate8c <- NULL
+c2c <- NULL; c3c <- NULL; c5c <- NULL; c7c <- NULL; c8c <- NULL
+l2c <- NULL; l3c <- NULL; l5c <- NULL; l7c <- NULL; l8c <- NULL
+
+time.taken2 <- NULL; time.taken3 <- NULL; time.taken5 <- NULL; time.taken7 <- NULL; time.taken8 <- NULL
+
+missrate1 <- NULL
+missrate2 <- NULL
+missrate3 <- NULL
+missrate99 <- NULL
+
+start.time1 <- Sys.time()
+
+###############################################
+#simulation starts
+for(i in 1:s1){
+
+#196 convariate generated
+x0a <- mvrnorm(n1, mu=mu1, Sigma=sigma1)
+
+#True active set
+list1 <- c(1:p1)
+list2 <- sample(list1, p1, replace=FALSE)
+
+#Confounders
+z4 <- x0a[, list2[1]]
+z5 <- x0a[, list2[2]]
+
+#Treatment variables generated
+z50 <- x0a[, list2[3]]
+z51 <- x0a[, list2[4]]
+
+Zs1 <- z4 + z5 + z50 + z51
+p2.con1 <- exp(Zs1)/(1+exp(Zs1))
+
+t1 <- rbinom(n1, 1, p2.con1)
+t2 <- rbinom(n1, 1, p2.con1)
+t3 <- rbinom(n1, 1, p2.con1)
+
+#sum(diag(table(t1, t2)))/sum(table(t1, t2))
+#sum(diag(table(t1, t3)))/sum(table(t1, t3))
+#sum(diag(table(t2, t3)))/sum(table(t2, t3))
+
+#mediators
+z52 <- x0a[, list2[5]] + t1
+z53 <- x0a[, list2[6]] + t2
+z54 <- x0a[, list2[7]] + t3
+
+#error term
+e1 <- rnorm(n1, 0, sigmae1)
+
+#Outcome variable generated
+y1 <- 1 + 2*t1 + 2*t2 + 2*t3 + 1*z4 + 1*z5 + 1*z52 + 1*z53 + 1*z54 + e1
+#sd(y1)
+#model1 <- lm(y1 ~ t1 + t2 + t3 + z4 + z5 + z52 + z53 + z54)
+#summary(model1)
+
+#colliders
+z55 <- x0a[, list2[8]] + t1 + y1
+z56 <- x0a[, list2[9]] + t2 + y1
+z57 <- x0a[, list2[10]] + t3 + y1
+
+x0b <- x0a[, list2[11:p1]]
+x0c <- data.frame(y1, t1, t2, t3, z4, z5, z50, z51, z52, z53, z54, z55, z56, z57, x0b)
+
+################
+#complete data
+
+start.time2 <- Sys.time()
+
+model2 <- lm(y1 ~ t1 + t2 + t3 + z4 + z5)
+
+end.time2 <- Sys.time()
+time.taken2[i] <- end.time2 - start.time2
+
+ate2a[i] <- summary(model2)$coef[2, 1]
+ate2b[i] <- summary(model2)$coef[3, 1]
+ate2c[i] <- summary(model2)$coef[4, 1]
+
+UL1 <- summary(model2)$coef[2, 1] + qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[2, 2]
+LL1 <- summary(model2)$coef[2, 1] - qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[2, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c2a[i] <- count1
+l2a[i] <- UL1 - LL1
+
+UL1 <- summary(model2)$coef[3, 1] + qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[3, 2]
+LL1 <- summary(model2)$coef[3, 1] - qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[3, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c2b[i] <- count1
+l2b[i] <- UL1 - LL1
+
+UL1 <- summary(model2)$coef[4, 1] + qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[4, 2]
+LL1 <- summary(model2)$coef[4, 1] - qt(0.975, summary(model2)$df[2]) * summary(model2)$coef[4, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c2c[i] <- count1
+l2c[i] <- UL1 - LL1
+
+################
+#x1 missing 40% conditional on some X's
+t1b <- t1
+t2b <- t2
+t3b <- t3
+
+Zs1a <- ay1*y1 + az1*z4 + az1*z5 + az1*z50 + az1*z51 + az1*z52 + az1*z55
+Zs1b <- -b1 + Zs1a - mean(Zs1a)
+
+Zs2a <- ay1*y1 + az1*z4 + az1*z5 + az1*z50 + az1*z51 + az1*z53 + az1*z56
+Zs2b <- -b1 + Zs2a - mean(Zs2a)
+
+Zs3a <- ay1*y1 + az1*z4 + az1*z5 + az1*z50 + az1*z51 + az1*z54 + az1*z57
+Zs3b <- -b1 + Zs3a - mean(Zs3a)
+
+p2.mar1 <- exp(Zs1b)/(1+exp(Zs1b))
+p2.mar2 <- exp(Zs2b)/(1+exp(Zs2b))
+p2.mar3 <- exp(Zs3b)/(1+exp(Zs3b))
+
+#par(mfrow=c(3, 1))
+#hist(p2.mar1)
+#summary(round(p2.mar1, 3))
+#hist(p2.mar2)
+#summary(round(p2.mar2, 3))
+#hist(p2.mar3)
+#summary(round(p2.mar3, 3))
+
+u1b <- rbinom(n1, 1, p2.mar1)
+t1b[u1b==1] <- NA
+
+u1b <- rbinom(n1, 1, p2.mar2)
+t2b[u1b==1] <- NA
+
+u1b <- rbinom(n1, 1, p2.mar3)
+t3b[u1b==1] <- NA
+
+data1b <- data.frame(t1b, t2b, t3b)
+
+missrate1[i] <- round(((length(t1) - length(na.omit(t1b)))/length(t1))*100, 3)
+missrate2[i] <- round(((length(t1) - length(na.omit(t2b)))/length(t1))*100, 3)
+missrate3[i] <- round(((length(t1) - length(na.omit(t3b)))/length(t1))*100, 3)
+missrate99[i] <- round(((length(t1) - nrow(na.omit(data1b)))/length(t1))*100, 3)
+
+#missrate1
+#missrate2
+#missrate3
+#missrate99
+#summary(round(p2.mar1, 3))
+
+x0d <- data.frame(y1, t1b, t2b, t3b, z4, z5, z50, z51, z52, z53, z54, z55, z56, z57, x0b)
+
+################
+#listwise deletion
+start.time3 <- Sys.time()
+
+model3 <- lm(y1 ~ t1b + t2b + t3b + z4 + z5)
+
+end.time3 <- Sys.time()
+time.taken3[i] <- end.time3 - start.time3
+
+ate3a[i] <- summary(model3)$coef[2, 1]
+ate3b[i] <- summary(model3)$coef[3, 1]
+ate3c[i] <- summary(model3)$coef[4, 1]
+
+UL1 <- summary(model3)$coef[2, 1] + qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[2, 2]
+LL1 <- summary(model3)$coef[2, 1] - qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[2, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c3a[i] <- count1
+l3a[i] <- UL1 - LL1
+
+UL1 <- summary(model3)$coef[3, 1] + qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[3, 2]
+LL1 <- summary(model3)$coef[3, 1] - qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[3, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c3b[i] <- count1
+l3b[i] <- UL1 - LL1
+
+UL1 <- summary(model3)$coef[4, 1] + qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[4, 2]
+LL1 <- summary(model3)$coef[4, 1]- qt(0.975, summary(model3)$df[2]) * summary(model3)$coef[4, 2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c3c[i] <- count1
+l3c[i] <- UL1 - LL1
+
+################
+#multiple imputation by the support vector machine with bootstrapping algorithm
+#miceSVM
+#x0d <- data.frame(y1, t1b, t2b, t3b, z4, z5, z50, z51, z52, z53, z54, z55, z56, z57, x0b)
+
+x0e <- x0d
+x0e[, 2] <- as.factor(t1b)
+x0e[, 3] <- as.factor(t2b)
+x0e[, 4] <- as.factor(t3b)
+
+start.time5 <- Sys.time()
+
+m.out5 <- mice(x0e, m = m1, printFlag = FALSE, method = c("", "svm", "svm", "svm", rep("", p1)), maxit = maxt1, eps = 0, scaled = c(FALSE, rep(TRUE, p1+3)))
+
+end.time5 <- Sys.time()
+time1 <- end.time5 - start.time5
+if(attr(time1, "units") == "secs"){
+time1 <- time1/60
+}
+time.taken5[i] <- time1
+
+model5 <- pool(with(m.out5, lm(y1 ~ t1b + t2b + t3b + z4 + z5)))
+
+ate5a[i] <- summary(model5)$estimate[2]
+ate5b[i] <- summary(model5)$estimate[3]
+ate5c[i] <- summary(model5)$estimate[4]
+
+UL1 <- summary(model5)$estimate[2] + qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[2]
+LL1 <- summary(model5)$estimate[2] - qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c5a[i] <- count1
+l5a[i] <- UL1 - LL1
+
+UL1 <- summary(model5)$estimate[3] + qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[3]
+LL1 <- summary(model5)$estimate[3] - qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[3]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c5b[i] <- count1
+l5b[i] <- UL1 - LL1
+
+UL1 <- summary(model5)$estimate[4] + qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[4]
+LL1 <- summary(model5)$estimate[4] - qt(0.975, summary(model2)$df[2]) * summary(model5)$std.error[4]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c5c[i] <- count1
+l5c[i] <- UL1 - LL1
+
+################
+#mice1:quickpred as benchmark
+#x0d <- data.frame(y1, t1b, t2b, t3b, z4, z5, z50, z51, z52, z53, z54, z55, z56, z57, x0b)
+
+x0f <- x0d
+x0f[, 2] <- as.factor(t1b)
+x0f[, 3] <- as.factor(t2b)
+x0f[, 4] <- as.factor(t3b)
+
+inlist <- c("y1", "t1b", "t2b", "t3b", "z4", "z5")
+pred <- quickpred(x0f, include = inlist)
+
+start.time7 <- Sys.time()
+
+m.out7 <- mice(x0f, m = m1, printFlag = FALSE, method = c("", "logreg", "logreg", "logreg", rep("", p1)), maxit = maxt1, pred = pred)
+
+end.time7 <- Sys.time()
+time1 <- end.time7 - start.time7
+if(attr(time1, "units") == "secs"){
+time1 <- time1/60
+}
+time.taken7[i] <- time1
+
+model7 <- pool(with(m.out7, lm(y1 ~ t1b + t2b + t3b + z4 + z5)))
+
+ate7a[i] <- summary(model7)$estimate[2]
+ate7b[i] <- summary(model7)$estimate[3]
+ate7c[i] <- summary(model7)$estimate[4]
+
+UL1 <- summary(model7)$estimate[2] + qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[2]
+LL1 <- summary(model7)$estimate[2] - qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c7a[i] <- count1
+l7a[i] <- UL1 - LL1
+
+UL1 <- summary(model7)$estimate[3] + qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[3]
+LL1 <- summary(model7)$estimate[3] - qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[3]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c7b[i] <- count1
+l7b[i] <- UL1 - LL1
+
+UL1 <- summary(model7)$estimate[4] + qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[4]
+LL1 <- summary(model7)$estimate[4] - qt(0.975, summary(model2)$df[2]) * summary(model7)$std.error[4]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c7c[i] <- count1
+l7c[i] <- UL1 - LL1
+
+################
+#mice2:Imputation by indirect use of lasso logistic regression (Deng et al., 2016)
+#https://cran.r-project.org/web/packages/mice/mice.pdf
+#pp.98-99
+#x0d <- data.frame(y1, t1b, t2b, t3b, z4, z5, z50, z51, z52, z53, z54, z55, z56, z57, x0b)
+
+x0g <- x0d
+x0g[, 2] <- as.factor(t1b)
+x0g[, 3] <- as.factor(t2b)
+x0g[, 4] <- as.factor(t3b)
+
+start.time8 <- Sys.time()
+
+m.out8 <- mice(x0g, m = m1, printFlag = FALSE, method = c("", "lasso.select.logreg", "lasso.select.logreg", "lasso.select.logreg", rep("", p1)), maxit = maxt1, eps = 0)
+
+end.time8 <- Sys.time()
+time1 <- end.time8 - start.time8
+if(attr(time1, "units") == "secs"){
+time1 <- time1/60
+}
+time.taken8[i] <- time1
+
+model8 <- pool(with(m.out8, lm(y1 ~ t1b + t2b + t3b + z4 + z5)))
+
+ate8a[i] <- summary(model8)$estimate[2]
+ate8b[i] <- summary(model8)$estimate[3]
+ate8c[i] <- summary(model8)$estimate[4]
+
+UL1 <- summary(model8)$estimate[2] + qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[2]
+LL1 <- summary(model8)$estimate[2] - qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[2]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c8a[i] <- count1
+l8a[i] <- UL1 - LL1
+
+UL1 <- summary(model8)$estimate[3] + qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[3]
+LL1 <- summary(model8)$estimate[3] - qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[3]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c8b[i] <- count1
+l8b[i] <- UL1 - LL1
+
+UL1 <- summary(model8)$estimate[4] + qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[4]
+LL1 <- summary(model8)$estimate[4] - qt(0.975, summary(model2)$df[2]) * summary(model8)$std.error[4]
+count1 <- NULL
+count1[LL1 < ate0 & ate0 < UL1] <- 1
+count1[LL1 > ate0 | ate0 > UL1] <- 0
+c8c[i] <- count1
+l8c[i] <- UL1 - LL1
+
+################
+#simulation progress bar
+par(mfrow=c(3, 1))
+
+barplot(
+c(i/s1*100,
+missrate1[i],
+abs((mean(ate2a)-ate0)/ate0*100),
+abs((mean(ate3a)-ate0)/ate0*100),
+abs((mean(ate7a)-ate0)/ate0*100),
+abs((mean(ate8a)-ate0)/ate0*100),
+abs((mean(ate5a)-ate0)/ate0*100)),
+ylim=c(0, 100),main="13r01additional3",
+names.arg=c("progress", "miss1", "Complete", "LW", "mice1", "mice2", "SVM"))
+abline(h=5, col=2)
+
+barplot(
+c(i/s1*100,
+missrate2[i],
+abs((mean(ate2b)-ate0)/ate0*100),
+abs((mean(ate3b)-ate0)/ate0*100),
+abs((mean(ate7b)-ate0)/ate0*100),
+abs((mean(ate8b)-ate0)/ate0*100),
+abs((mean(ate5b)-ate0)/ate0*100)),
+ylim=c(0, 100),
+names.arg=c("progress", "miss2", "Complete", "LW", "mice1", "mice2", "SVM"))
+abline(h=5, col=2)
+
+barplot(
+c(i/s1*100,
+missrate3[i],
+abs((mean(ate2c)-ate0)/ate0*100),
+abs((mean(ate3c)-ate0)/ate0*100),
+abs((mean(ate7c)-ate0)/ate0*100),
+abs((mean(ate8c)-ate0)/ate0*100),
+abs((mean(ate5c)-ate0)/ate0*100)),
+ylim=c(0, 100),
+names.arg=c("progress", "miss3", "Complete", "LW", "mice1", "mice2", "SVM"))
+abline(h=5, col=2)
+
+}
+#simulation ends
+###############################################
+#CI Coverage and CI Length
+
+#########
+#Complete Data
+coverage2a <- mean(c2a)
+cilength2a <- mean(l2a)
+
+coverage2b <- mean(c2b)
+cilength2b <- mean(l2b)
+
+coverage2c <- mean(c2c)
+cilength2c <- mean(l2c)
+
+#########
+#Listwise
+coverage3a <- mean(c3a)
+cilength3a <- mean(l3a)
+
+coverage3b <- mean(c3b)
+cilength3b <- mean(l3b)
+
+coverage3c <- mean(c3c)
+cilength3c <- mean(l3c)
+
+#########
+#MEISVM
+coverage5a <- mean(c5a)
+cilength5a <- mean(l5a)
+
+coverage5b <- mean(c5b)
+cilength5b <- mean(l5b)
+
+coverage5c <- mean(c5c)
+cilength5c <- mean(l5c)
+
+#########
+#mice 1
+coverage7a <- mean(c7a)
+cilength7a <- mean(l7a)
+
+coverage7b <- mean(c7b)
+cilength7b <- mean(l7b)
+
+coverage7c <- mean(c7c)
+cilength7c <- mean(l7c)
+
+#########
+#mice 2
+coverage8a <- mean(c8a)
+cilength8a <- mean(l8a)
+
+coverage8b <- mean(c8b)
+cilength8b <- mean(l8b)
+
+coverage8c <- mean(c8c)
+cilength8c <- mean(l8c)
+
+#################################
+#Bias
+bias1a <- round(c(
+mean(ate2a)-ate0,
+mean(ate3a)-ate0,
+mean(ate7a)-ate0,
+mean(ate8a)-ate0,
+mean(ate5a)-ate0),3)
+
+bias1b <- round(c(
+mean(ate2b)-ate0,
+mean(ate3b)-ate0,
+mean(ate7b)-ate0,
+mean(ate8b)-ate0,
+mean(ate5b)-ate0),3)
+
+bias1c <- round(c(
+mean(ate2c)-ate0,
+mean(ate3c)-ate0,
+mean(ate7c)-ate0,
+mean(ate8c)-ate0,
+mean(ate5c)-ate0),3)
+
+#################################
+#Percent Bias
+pbias1a <- round(c(
+abs((mean(ate2a)-ate0)/ate0*100),
+abs((mean(ate3a)-ate0)/ate0*100),
+abs((mean(ate7a)-ate0)/ate0*100),
+abs((mean(ate8a)-ate0)/ate0*100),
+abs((mean(ate5a)-ate0)/ate0*100)),3)
+
+pbias1b <- round(c(
+abs((mean(ate2b)-ate0)/ate0*100),
+abs((mean(ate3b)-ate0)/ate0*100),
+abs((mean(ate7b)-ate0)/ate0*100),
+abs((mean(ate8b)-ate0)/ate0*100),
+abs((mean(ate5b)-ate0)/ate0*100)),3)
+
+pbias1c <- round(c(
+abs((mean(ate2c)-ate0)/ate0*100),
+abs((mean(ate3c)-ate0)/ate0*100),
+abs((mean(ate7c)-ate0)/ate0*100),
+abs((mean(ate8c)-ate0)/ate0*100),
+abs((mean(ate5c)-ate0)/ate0*100)),3)
+
+#################################
+#MSE
+mse1a <- round(c(
+sum((ate2a-ate0)^2)/s1,
+sum((ate3a-ate0)^2)/s1,
+sum((ate7a-ate0)^2)/s1,
+sum((ate8a-ate0)^2)/s1,
+sum((ate5a-ate0)^2)/s1),3)
+
+mse1b <- round(c(
+sum((ate2b-ate0)^2)/s1,
+sum((ate3b-ate0)^2)/s1,
+sum((ate7b-ate0)^2)/s1,
+sum((ate8b-ate0)^2)/s1,
+sum((ate5b-ate0)^2)/s1),3)
+
+mse1c <- round(c(
+sum((ate2c-ate0)^2)/s1,
+sum((ate3c-ate0)^2)/s1,
+sum((ate7c-ate0)^2)/s1,
+sum((ate8c-ate0)^2)/s1,
+sum((ate5c-ate0)^2)/s1),3)
+
+#################################
+#Coverage
+cover1a <- round(c(
+coverage2a*100,
+coverage3a*100,
+coverage7a*100,
+coverage8a*100,
+coverage5a*100),3)
+
+cover1b <- round(c(
+coverage2b*100,
+coverage3b*100,
+coverage7b*100,
+coverage8b*100,
+coverage5b*100),3)
+
+cover1c <- round(c(
+coverage2c*100,
+coverage3c*100,
+coverage7c*100,
+coverage8c*100,
+coverage5c*100),3)
+
+#################################
+#CI Length
+CIlength1a <- round(c(
+cilength2a,
+cilength3a,
+cilength7a,
+cilength8a,
+cilength5a),3)
+
+CIlength1b <- round(c(
+cilength2b,
+cilength3b,
+cilength7b,
+cilength8b,
+cilength5b),3)
+
+CIlength1c <- round(c(
+cilength2c,
+cilength3c,
+cilength7c,
+cilength8c,
+cilength5c),3)
+
+#################################
+seeds1 <- c(rep(seed1, length(cover1a)))
+
+time1 <- c(round(mean(time.taken2), 3), round(mean(time.taken3), 3), round(mean(time.taken7), 3), round(mean(time.taken8), 3), round(mean(time.taken5), 3))
+
+names1 <- c("Complete", "LW", "mice1", "mice2lasso", "SVM")
+
+output1a <- data.frame(bias1a, pbias1a, mse1a, cover1a, CIlength1a, seeds1, time1)
+rownames(output1a) <- names1
+
+output1b <- data.frame(bias1b, pbias1b, mse1b, cover1b, CIlength1b, seeds1, time1)
+rownames(output1b) <- names1
+
+output1c <- data.frame(bias1c, pbias1c, mse1c, cover1c, CIlength1c, seeds1, time1)
+rownames(output1c) <- names1
+
+length(ate2a)
+summary(missrate1)
+summary(missrate2)
+summary(missrate3)
+summary(missrate99)
+
+output1a
+output1b
+output1c
+
+end.time1 <- Sys.time()
+end.time1 - start.time1
+
